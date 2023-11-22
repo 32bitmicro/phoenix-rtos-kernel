@@ -14,15 +14,16 @@
  * %LICENSE%
  */
 
+#include <arch/cpu.h>
+
 #include "hal/pmap.h"
 #include "hal/string.h"
-#include <arch/cpu.h>
-#include "proc/elf.h"
 
 #include "syspage.h"
 #include "multiboot.h"
 
 #include "include/errno.h"
+#include "include/elf.h"
 
 
 extern void _start(void);
