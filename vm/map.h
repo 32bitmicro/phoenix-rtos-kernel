@@ -65,7 +65,7 @@ typedef struct _map_entry_t {
 	size_t lmaxgap;
 	size_t rmaxgap;
 
-	unsigned short flags;
+	u32 flags;
 	unsigned short prot;
 	unsigned short protOrig;
 	struct _vm_object_t *object;
@@ -73,19 +73,19 @@ typedef struct _map_entry_t {
 } map_entry_t;
 
 
-extern void *vm_mapFind(vm_map_t *map, void *vaddr, size_t size, u8 flags, u8 prot);
+extern void *vm_mapFind(vm_map_t *map, void *vaddr, size_t size, u32 flags, u8 prot);
 
 
-extern void *vm_mmap(vm_map_t *map, void *vaddr, page_t *p, size_t size, u8 prot, struct _vm_object_t *o, off_t offs, u8 flags);
+extern void *vm_mmap(vm_map_t *map, void *vaddr, page_t *p, size_t size, u8 prot, struct _vm_object_t *o, off_t offs, u32 flags);
 
 
-extern void *_vm_mmap(vm_map_t *map, void *vaddr, page_t *p, size_t size, u8 prot, struct _vm_object_t *o, off_t offs, u8 flags);
+extern void *_vm_mmap(vm_map_t *map, void *vaddr, page_t *p, size_t size, u8 prot, struct _vm_object_t *o, off_t offs, u32 flags);
 
 
 extern int vm_mapForce(vm_map_t *map, void *vaddr, int prot);
 
 
-extern int vm_mapFlags(vm_map_t *map, void *vaddr);
+extern u32 vm_mapFlags(vm_map_t *map, void *vaddr);
 
 
 extern int vm_lockVerify(vm_map_t *map, struct _amap_t **amap, struct _vm_object_t *o, void *vaddr, off_t offs);
@@ -103,7 +103,7 @@ extern int vm_mprotect(vm_map_t *map, void *vaddr, size_t len, int prot);
 extern void vm_mapDump(vm_map_t *map);
 
 
-extern int vm_flagsToAttr(int flags);
+extern int vm_flagsToAttr(u32 flags);
 
 
 extern int vm_mapCreate(vm_map_t *map, void *start, void *stop);

@@ -470,7 +470,8 @@ int process_load32(vm_map_t *map, vm_object_t *o, off_t base, void *iehdr, size_
 	Elf32_Ehdr *ehdr = iehdr;
 	Elf32_Phdr *phdr;
 	Elf32_Shdr *shdr, *shstrshdr;
-	unsigned i, prot, flags, misalign;
+	unsigned i, prot, misalign;
+	u32 flags;
 	off_t offs;
 	char *snameTab;
 
@@ -731,7 +732,8 @@ int process_load(process_t *process, vm_object_t *o, off_t base, size_t size, vo
 #else
 	Elf32_Rel *rel;
 #endif
-	unsigned prot, flags, reloffs;
+	unsigned prot, reloffs;
+	u32 flags;
 	int i, j, relocsz = 0, reltype, badreloc = 0, err;
 	void *relptr;
 	char *snameTab;
