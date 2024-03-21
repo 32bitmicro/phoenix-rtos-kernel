@@ -443,3 +443,8 @@ void _hal_platformInit(void)
 	/* Restore output clocks state */
 	*(imx6ull_common.ccm + ccm_ccgr4) = tmp;
 }
+
+
+void _hal_cpuInit(void)
+{
+}

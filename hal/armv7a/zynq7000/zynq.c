@@ -13,6 +13,7 @@
  * %LICENSE%
  */
 
+#include "hal/armv7a/armv7a.h"
 #include "hal/cpu.h"
 #include "hal/spinlock.h"
 #include "include/arch/armv7a/zynq7000/zynq7000.h"
@@ -75,6 +76,7 @@ struct {
 
 
 extern unsigned int _end;
+volatile unsigned int nCpusStarted = 0;
 
 
 static void _zynq_slcrLock(void)
@@ -650,4 +652,20 @@ void _hal_platformInit(void)
 {
 	hal_spinlockCreate(&zynq_common.pltctlSp, "pltctl");
 	zynq_common.slcr = (void *)(((u32)&_end + 9 * SIZE_PAGE - 1) & ~(SIZE_PAGE - 1));
+}
+
+
+void _hal_cpuInit(void)
+{
+	hal_cpuAtomicInc(&nCpusStarted);
+	if (hal_cpuAtomicGet(&nCpusStarted) == 1) {
+		/* This is necessary because other CPU is still in physical memory
+		 * with L1 cache turned off so SCU cannot enforce cache coherence */
+		hal_cpuFlushDataCache((ptr_t)&nCpusStarted, (ptr_t)((&nCpusStarted) + 1));
+		asm __volatile__("sev");
+	}
+
+	while (hal_cpuAtomicGet(&nCpusStarted) != NUM_CPUS) {
+		hal_cpuHalt();
+	}
 }

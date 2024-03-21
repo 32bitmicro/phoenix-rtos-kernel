@@ -27,6 +27,7 @@ u32 schedulerLocked = 0;
 
 
 extern void _hal_platformInit(void);
+extern void _hal_cpuInit(void);
 
 
 void *hal_syspageRelocate(void *data)
@@ -92,6 +93,7 @@ __attribute__ ((section (".init"))) void _hal_init(void)
 
 	_hal_timerInit(SYSTICK_INTERVAL);
 
+	_hal_cpuInit();
 	hal_common.started = 0;
 	return;
 }
