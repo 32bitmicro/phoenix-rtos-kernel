@@ -13,6 +13,8 @@
  * %LICENSE%
  */
 
+#include "hal/armv7a/armv7a.h"
+
 #include "hal/cpu.h"
 #include "hal/spinlock.h"
 #include "hal/interrupts.h"
@@ -25,7 +27,12 @@
 #define SIZE_HANDLERS   4
 #define SPI_FIRST_IRQID 32
 
+#define SGI_FLT_USE_LIST   0 /* Send SGI to CPUs according to targetList */
+#define SGI_FLT_OTHER_CPUS 1 /* Send SGI to all CPUs except the one that called this function */
+#define SGI_FLT_THIS_CPU   2 /* Send SGI to the CPU that called this function */
 
+
+/* clang-format off */
 enum {
 	/* Interrupt interface registers */
 	cicr = 0x40, cpmr, cbpr, ciar, ceoir, crpr, chpir, cabpr,
@@ -41,6 +48,7 @@ enum {
 enum {
 	reserved = 0, high_lvl = 1, rising_edge = 3
 };
+/* clang-format on */
 
 
 struct {
@@ -220,6 +228,8 @@ void _hal_interruptsInit(void)
 		interrupts_setCPU(i, 0x1);
 	}
 
+	/* SGI and PPI interrupts are fixed to always be on both CPUs */
+
 	/* Disable interrupts */
 	*(interrupts_common.gic + dicer0) = 0xffffffff;
 	*(interrupts_common.gic + dicer0 + 1) = 0xffffffff;
@@ -236,4 +246,17 @@ void _hal_interruptsInit(void)
 
 	/* EnableS = 1; EnableNS = 1; AckCtl = 1; FIQEn = 0 */
 	*(interrupts_common.gic + cicr) |= 0x7;
+}
+
+
+static void hal_cpuSendSGI(u8 targetFilter, u8 targetList, u8 intID)
+{
+	*(interrupts_common.gic + dsgir) = ((targetFilter & 0x3) << 24) | (targetList << 16) | (intID & 0xf);
+	hal_cpuDataMemoryBarrier();
+}
+
+
+void hal_cpuBroadcastIPI(unsigned int intr)
+{
+	hal_cpuSendSGI(SGI_FLT_OTHER_CPUS, 0, intr);
 }
