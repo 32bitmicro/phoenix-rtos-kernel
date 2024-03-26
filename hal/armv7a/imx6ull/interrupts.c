@@ -48,7 +48,7 @@ extern int threads_schedule(unsigned int n, cpu_context_t *context, void *arg);
 extern unsigned int _end;
 
 
-void interrupts_dispatch(unsigned int n, cpu_context_t *ctx)
+int interrupts_dispatch(unsigned int n, cpu_context_t *ctx)
 {
 	intr_handler_t *h;
 	int reschedule = 0;
@@ -56,8 +56,9 @@ void interrupts_dispatch(unsigned int n, cpu_context_t *ctx)
 
 	n = *(interrupts.gic + iar) & 0x3ff;
 
-	if (n >= SIZE_INTERRUPTS)
-		return;
+	if (n >= SIZE_INTERRUPTS) {
+		return 0;
+	}
 
 	hal_spinlockSet(&interrupts.spinlock[n], &sc);
 
@@ -76,7 +77,7 @@ void interrupts_dispatch(unsigned int n, cpu_context_t *ctx)
 
 	hal_spinlockClear(&interrupts.spinlock[n], &sc);
 
-	return;
+	return reschedule;
 }
 
 
