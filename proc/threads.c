@@ -1425,7 +1425,7 @@ int threads_sigpost(process_t *process, thread_t *thread, int sig)
 
 	return EOK;
 }
-
+#include "hal/pmap.h"
 
 static int _threads_checkSignal(thread_t *selected, process_t *proc, cpu_context_t *signalCtx, const int src)
 {
