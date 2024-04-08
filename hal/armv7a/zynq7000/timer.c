@@ -18,6 +18,8 @@
 #include "hal/spinlock.h"
 #include "hal/string.h"
 
+#include "zynq.h"
+
 #define TIMER_SRC_CLK_CPU_1x 111111115 /* Hz */
 #define TIMER_IRQ_ID         42
 
@@ -50,10 +52,12 @@ static int _timer_irqHandler(unsigned int n, cpu_context_t *ctx, void *arg)
 	u32 st = *(timer_common.ttc + isr);
 
 	/* Interval IRQ */
-	if (st & 0x1) {
+	if ((st & 0x1) != 0) {
 		timer_common.jiffies += timer_common.ticksPerFreq;
 	}
 
+	u32 nextTargetCPU = 1ULL << ((hal_cpuGetID() + 1) % NUM_CPUS);
+	_zynq_interrupts_setCPU(n, nextTargetCPU);
 	hal_cpuDataSyncBarrier();
 
 	return 0;
@@ -76,6 +80,7 @@ static time_t hal_timerGetCyc(void)
 	jiffies = timer_common.jiffies;
 
 	/* Check if there's pending jiffies increment */
+	/* TODO: this could be a problem - we are trying to increment the counter from potentially both CPUs at once */
 	if ((*(timer_common.ttc + isr) & 1) != 0) {
 		/* ISR register is clear on read, we have to update jiffies now */
 		timer_common.jiffies += timer_common.ticksPerFreq;
