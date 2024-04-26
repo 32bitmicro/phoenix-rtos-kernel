@@ -19,6 +19,7 @@
 #include "include/arch/armv7a/zynq7000/zynq7000.h"
 
 
+/* clang-format off */
 /* SLCR (System Level Control Registers) */
 enum {
 	/* SLCR protection registers */
@@ -60,6 +61,7 @@ enum {
 	slcr_sd0_wp_cd_sel = 0x20c, slcr_sd1_wp_cd_sel,
 	slcr_lvl_shftr_en = 0x240,
 	slcr_ocm_cfg = 0x244,
+	slcr_l2c_ram_reg = 0x287,
 	/* GPIO config registers */
 	slcr_gpiob_ctrl = 0x2c0, slcr_gpiob_cfg_cmos18, slcr_gpiob_cfg_cmos25, slcr_gpiob_cfg_cmos33,
 	slcr_gpiob_cfg_hstl = 0x2c5, slcr_gpiob_drvr_bias_ctrl,
@@ -69,9 +71,21 @@ enum {
 };
 
 
+enum {
+	l2cc_ctrl = 0x40, l2cc_aux_ctrl, l2cc_tag_ram_ctrl, l2cc_data_ram_ctrl,
+	l2cc_int_mask = 0x85, l2cc_int_mask_status, l2cc_int_raw, l2cc_int_clear,
+	l2cc_sync = 0x1cc,
+	l2cc_inval_pa = 0x1dc, l2cc_inval_way = 0x1df,
+	l2cc_clean_pa = 0x1ec, l2cc_clean_index = 0x1ee, l2cc_clean_way,
+	l2cc_flush_pa = 0x1fc, l2cc_flush_index = 0x1fe, l2cc_flush_way,
+};
+/* clang-format on */
+
+
 struct {
 	spinlock_t pltctlSp;
 	volatile u32 *slcr;
+	volatile u32 *l2cc;
 } zynq_common;
 
 
@@ -648,10 +662,30 @@ int hal_platformctl(void *ptr)
 }
 
 
+static void _zynq_activateL2Cache(void)
+{
+	*(zynq_common.l2cc + l2cc_ctrl) = 0;               /* Disable L2 cache */
+	*(zynq_common.l2cc + l2cc_aux_ctrl) |= 0x72360000; /* Enable all prefetching, Way Size (16 KB) and High Priority for SO and Dev Reads Enable */
+	*(zynq_common.l2cc + l2cc_tag_ram_ctrl) = 0x0111;  /* 7 Cycles of latency for TAG RAM */
+	*(zynq_common.l2cc + l2cc_data_ram_ctrl) = 0x0121; /* 7 Cycles of latency for DATA RAM */
+	*(zynq_common.l2cc + l2cc_inval_way) = 0xFFFF;     /* Invalidate everything */
+	while (*(zynq_common.l2cc + l2cc_sync) != 0) {
+		/* wait for completion */
+	}
+
+	*(zynq_common.l2cc + l2cc_int_clear) = *(zynq_common.l2cc + l2cc_int_raw); /* Clear pending interrupts */
+	_zynq_slcrUnlock();
+	*(zynq_common.slcr + slcr_l2c_ram_reg) = 0x00020202; /* Magic value, not described in detail */
+	_zynq_slcrLock();
+	*(zynq_common.l2cc + l2cc_ctrl) |= 1; /* Enable L2 cache */
+}
+
+
 void _hal_platformInit(void)
 {
 	hal_spinlockCreate(&zynq_common.pltctlSp, "pltctl");
 	zynq_common.slcr = (void *)(((u32)&_end + 9 * SIZE_PAGE - 1) & ~(SIZE_PAGE - 1));
+	zynq_common.l2cc = (void *)(((u32)&_end + 11 * SIZE_PAGE - 1) & ~(SIZE_PAGE - 1));
 }
 
 
@@ -667,5 +701,9 @@ void _hal_cpuInit(void)
 
 	while (hal_cpuAtomicGet(&nCpusStarted) != NUM_CPUS) {
 		hal_cpuHalt();
+	}
+
+	if (hal_cpuGetID() == 0) {
+		_zynq_activateL2Cache();
 	}
 }

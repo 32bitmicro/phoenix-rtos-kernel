@@ -45,6 +45,7 @@
 #define PA_UART1 0xe0001000
 #define PA_SLCR  0xf8000000
 #define PA_TTC   0xf8001000
+#define PA_L2CC  0xf8f02000
 
 /* Attributes for kernel pages:
  * Small page, XN = 0 (allow Execute), TEX = 1 C = 1 B = 1 (Outer and Inner Write-Back, Write-Allocate),
@@ -292,6 +293,10 @@ kernel_ttl2:
 
 	/* Map TTC after SLCR */
 	ldr r1, =(PA_TTC | DEVICE_PAGE_ATTR)
+	str r1, [r0], #4
+
+	/* Map L2 Cache Controller after TTC */
+	ldr r1, =(PA_L2CC | DEVICE_PAGE_ATTR)
 	str r1, [r0], #4
 
 	b per_core_init
