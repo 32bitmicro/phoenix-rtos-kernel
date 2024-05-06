@@ -357,7 +357,7 @@ int _page_sbrk(pmap_t *pmap, void **start, void **end)
 	if ((np = _page_alloc(SIZE_PAGE, PAGE_OWNER_KERNEL | PAGE_KERNEL_HEAP)) == NULL)
 		return -ENOMEM;
 
-	while (pmap_enter(pmap, np->addr, (*end), PGHD_WRITE | PGHD_PRESENT, ap) < 0) {
+	while (pmap_enter(pmap, np->addr, (*end), PGHD_READ | PGHD_WRITE | PGHD_PRESENT, ap) < 0) {
 		if ((ap = _page_alloc(SIZE_PAGE, PAGE_OWNER_KERNEL | PAGE_KERNEL_PTABLE)) == NULL)
 			return -ENOMEM;
 	}
