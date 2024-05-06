@@ -15,10 +15,9 @@
 
 #include <arch/pmap.h>
 #include <arch/tlb.h>
+#include <arch/interrupts.h>
 
-#include "hal/string.h"
 #include "hal/cpu.h"
-#include "hal/interrupts.h"
 
 #include "tlb.h"
 
@@ -28,7 +27,6 @@
 
 
 struct task_tlb {
-	void (*func)(void *);
 	const void *entry;
 	const pmap_t *pmap;
 	size_t count;
@@ -53,9 +51,8 @@ static struct {
 } tlb_common;
 
 
-static void tlb_invalidate(void *arg)
+static void tlb_invalidate(struct task_tlb *task)
 {
-	struct task_tlb *task = arg;
 	spinlock_ctx_t sc;
 	size_t i;
 	const void *entry;
@@ -85,7 +82,6 @@ void hal_tlbInvalidateEntry(const pmap_t *pmap, const void *vaddr, size_t count)
 	hal_spinlockSet(&tlb_common.tlbs[id].task_spinlock, &sc);
 	tasks_size = tlb_common.tlbs[id].tasks_size;
 
-	tlb_common.tlbs[id].tasks[tasks_size].func = tlb_invalidate;
 	tlb_common.tlbs[id].tasks[tasks_size].pmap = pmap;
 	tlb_common.tlbs[id].tasks[tasks_size].entry = vaddr;
 	tlb_common.tlbs[id].tasks[tasks_size].count = count;
@@ -139,7 +135,7 @@ void hal_tlbShootdown(void)
 	const unsigned int id = hal_cpuGetID();
 	hal_spinlockSet(&tlb_common.tlbs[id].todo_spinlock, &sc);
 	for (i = 0; i < tlb_common.tlbs[id].todo_size; ++i) {
-		tlb_common.tlbs[id].todo[i]->func(tlb_common.tlbs[id].todo[i]);
+		tlb_invalidate(tlb_common.tlbs[id].todo[i]);
 	}
 	tlb_common.tlbs[id].todo_size = 0;
 	hal_spinlockClear(&tlb_common.tlbs[id].todo_spinlock, &sc);
