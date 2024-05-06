@@ -5,7 +5,7 @@
  *
  * Interrupt stubs
  *
- * Copyright 2018, 2020, 2023 Phoenix Systems
+ * Copyright 2018, 2020, 2023, 2024 Phoenix Systems
  * Author: Pawel Pisarczyk, Julia Kosowska, Lukasz Leczkowski
  *
  * This file is part of Phoenix-RTOS.
@@ -18,12 +18,20 @@
 #include <arch/cpu.h>
 
 .extern hal_cpuKernelStack
+.extern hal_multilock
 
 .text
 
+.macro MULTILOCK_CLEAR
+	la t0, hal_multilock
+	fence rw, w
+	amoswap.w t0, zero, (t0)
+.endm
+
+
 .macro SAVE
-	/* Save a0 to sscratch */
-	csrw sscratch, a0
+	csrrw a1, sscratch, a1  /* a1 = &hal_riscvHartData[hartId] */
+	sd a0, 16(a1)           /* Save a0 */
 
 	/* Read sstatus to a0 */
 	csrr a0, sstatus
@@ -44,7 +52,7 @@
 	/* User mode
 	 * Load kernel stack pointer from hal_cpuKernelStack
 	 */
-	ld a0, hal_cpuKernelStack
+	ld a0, 8(a1)
 
 	/* Save task's stack pointer */
 	sd sp, -272(a0)
@@ -53,8 +61,9 @@
 	addi sp, a0, -CPU_CTX_SIZE
 
 2:
-	/* restore a0 */
-	csrr a0, sscratch
+	/* restore a0, a1 */
+	ld a0, 16(a1)
+	csrrw a1, sscratch, a1
 
 	/* Save context */
 	sd x1, (sp)          /* ra */
@@ -149,12 +158,13 @@
 	csrr s2, sepc
 	csrr s3, sbadaddr
 	csrr s4, scause
+	csrr s5, sscratch
 
 	sd s1, 240(sp)   /* sstatus */
 	sd s2, 248(sp)   /* sepc */
 	sd s3, 256(sp)   /* sbadaddr */
 	sd s4, 264(sp)   /* scause */
-
+	sd s5, 272(sp)   /* sscratch */
 	sd tp, 280(sp)   /* tp */
 .endm
 
@@ -266,8 +276,16 @@ _interrupts_dispatch:
 	andi a0, s4, 0xff /* Exception code */
 	beqz s0, _interrupts_notIrq
 
+	# fence
+
 	/* IRQ */
 	call interrupts_dispatch
+
+	/* if not rescheduled, don't clear multilock */
+	beqz a0, _interrupts_return
+
+	MULTILOCK_CLEAR
+
 	j _interrupts_return
 
 _interrupts_notIrq:
@@ -430,7 +448,6 @@ _interrupts_return:
 .size _interrupts_dispatch, .-_interrupts_dispatch
 
 
-
 .global hal_cpuReschedule
 hal_cpuReschedule:
 	/* Disable interrupts */
@@ -444,25 +461,37 @@ hal_cpuReschedule:
 
 	SAVE
 
-	beqz a0, 1f
+	beqz a0, .LnoSpinlock
 
+.Lspinlocked:
 	/* Modify saved status */
 	ld t0, (a1)
+	ori t0, t0, SSTATUS_SPP
 	sd t0, 240(sp)
+	sd zero, 56(sp)
+
+	/* Save spinlock */
+	mv s0, a0
+	mv a1, sp
+	mv a2, zero
+
+	mv a0, zero
+
+	call _threads_schedule
+
+	mv a0, s0
 
 	/* Clear spinlock */
-	li t0, 1
 	addi a0, a0, 24
-	amoswap.w.rl t0, t0, (a0)
-1:
+	amoswap.w.rl a0, zero, (a0)
+
+	j .Lrescheduled
+
+.LnoSpinlock:
 	ld t0, 240(sp)
 	sd zero, 56(sp)
 
 	ori t0, t0, SSTATUS_SPP
-	andi t1, t0, SSTATUS_SIE
-	sll t1, t1, 4
-	andi t0, t0, ~SSTATUS_SIE
-	or t0, t0, t1
 
 	/* Save modified flags in old context */
 	sd t0, 240(sp)
@@ -471,6 +500,9 @@ hal_cpuReschedule:
 	mv a2, zero
 	call threads_schedule
 
+.Lrescheduled:
+	MULTILOCK_CLEAR
+
 	RESTORE
 	sret
 .size hal_cpuReschedule, .-hal_cpuReschedule
@@ -478,11 +510,11 @@ hal_cpuReschedule:
 
 .global hal_jmp  /* void hal_jmp(void *f, void *kstack, void *ustack, int kargc, const arg_t *kargs) */
 hal_jmp:
+	csrc sstatus, SSTATUS_SIE /* disable interrupts */
 	mv s0, a0
 	mv s1, a1
 	mv s2, a2
 	mv s3, a3
-	csrc sstatus, SSTATUS_SIE /* disable interrupts */
 
 	bnez a2, 2f
 
@@ -501,6 +533,7 @@ hal_jmp:
 	blt s3, zero, 1f
 	ld a3, 24(a4)
 1:
+	fence.i
 	csrs sstatus, SSTATUS_SIE /* enable interrupts */
 	jr s0
 
@@ -509,6 +542,8 @@ hal_jmp:
 	li t0, 0x120
 	csrc sstatus, t0 /* sret will return to usermode */
 	csrw sepc, s0 /* address to return to */
+
+	fence.i
 
 	sret
 .size hal_jmp, .-hal_jmp

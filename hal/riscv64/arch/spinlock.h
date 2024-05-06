@@ -26,8 +26,8 @@ typedef struct _spinlock_t {
 	struct _spinlock_t *next;
 	struct _spinlock_t *prev;
 
-	u64 lock;
-} spinlock_t;
+	u32 lock;
+} __attribute__((packed, aligned(8))) spinlock_t;
 
 
 #endif

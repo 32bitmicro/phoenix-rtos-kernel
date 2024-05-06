@@ -65,11 +65,16 @@
 	})
 
 
-static inline void hal_cpuFlushTLB(void *vaddr)
+static inline void hal_cpuFlushTLB(const void *vaddr)
 {
-	(void)vaddr;
-
-	__asm__ volatile("sfence.vma" ::);
+	/* clang-format off */
+	__asm__ volatile (
+		"sfence.vma %0, zero"
+		:
+		: "r"(vaddr)
+		: "memory"
+	);
+	/* clang-format on */
 }
 
 
@@ -78,8 +83,32 @@ static inline void hal_cpuSwitchSpace(addr_t pdir)
 	/* clang-format off */
 	__asm__ volatile(
 		"sfence.vma\n\t"
-		"csrw sptbr, %0\n\t"
-		::"r"(pdir));
+		"csrw satp, %0\n\t"
+		"fence\n\t"
+		"fence.i\n\t"
+		:
+		:"r"(pdir)
+		: "memory"
+	);
+	/* clang-format on */
+}
+
+
+/* Barriers */
+
+
+/* clang-format off */
+#define RISCV_FENCE(p, s) \
+	({ \
+		__asm__ volatile ("fence " #p ", " #s ::: "memory"); \
+	})
+/* clang-format on */
+
+
+static inline void hal_cpuInstrBarrier(void)
+{
+	/* clang-format off */
+	__asm__ volatile("fence.i" ::: "memory");
 	/* clang-format on */
 }
 

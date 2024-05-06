@@ -20,6 +20,7 @@
 #include "cpu.h"
 
 
+#define TLB_IRQ     (1u | CLINT_IRQ_FLG)
 #define SYSTICK_IRQ (5u | CLINT_IRQ_FLG)
 
 
@@ -30,5 +31,9 @@ typedef struct _intr_handler_t {
 	int (*f)(unsigned int, cpu_context_t *, void *);
 	void *data;
 } intr_handler_t;
+
+
+void hal_interruptsInitCore(void);
+
 
 #endif
